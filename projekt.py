@@ -101,7 +101,7 @@ def parseJSON(resultsJSON):
                             snpeff += f"{key}:{value}; "
                         snpeff += '|'
                 else:
-                    print("", end="")
+                    snpeff = result.get('snpeff', {}).get('ann', 'N/A')
                     
                 dbsnp = ""
                 for key, value in result.get('dbsnp', {}).items():
