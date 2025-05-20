@@ -133,107 +133,23 @@ def parseJSON(resultsJSON):
 #NATALIA, ZAPISUJESZ DO HTMLA W TYM MIEJSCU, CZUJ SIE WOLNA ZMIENIĆ WSZYSTKO CO CHCESZ
 #https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.to_html.html
 #mam nadzieje ze wam to tez dziala XD
-    table_html = df.to_html(index=False, border=1, classes='display')
-    full_html = f"""
-<!DOCTYPE html>
-<html lang="pl">
-<head>
-    <meta charset="UTF-8">
-    <title>Projekt</title>
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
-    <style>
-        body {{
-            text-align: center;
-            font-family: Comic Sans MS;
-            background-image: url('https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExMzZ0czE4eW4wZWsxNWhiaGh3cjhoZHFxOW9leWd5eDZ2cGZvbnczdCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/ECWLeGxcKasCc/giphy.gif');
-            background-size: cover;
-            color: #000;
-        }}
-        table.display {{
-            background-color: rgba(255,255,255,0.8);
-            margin: 20px auto;
-            border-collapse: collapse;
-        }}
-        th, td {{ padding: 10px; border: 1px solid #aaa; }}
-    </style>
-    <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
-    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-</head>
-<body>
-    <h1>PROJEKTTTT</h1>
-    <img src="https://media.giphy.com/media/13borq7Zo2kulO/giphy.gif" width="300" alt="Jednorożec">
-    <img src="https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExY245NG84OXE5eDk1ZW5mOG1xM3E5bHR6emR6OHRjNmtxNHViajdhZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/2A75RyXVzzSI2bx4Gj/giphy.gif" width="300" alt="Tęcza">
 
-    <div>
-        {table_html}
-    </div>
 
-    <script>
-        $(document).ready(function() {{
-            $('table.display').DataTable({{
-                paging: true,
-                searching: true,
-                ordering: true,
-                info: true
-            }});
-        }});
-    </script>
-
-    <audio autoplay loop>
-        <source src="magiczna_muzyka.mp3" type="audio/mpeg">
-    </audio>
-
-    <script>
-        function spawnRandomImage() {{
-            const img = document.createElement('img');
-            img.src = 'phd.png';
-            img.style.position = 'fixed';
-            img.style.width = '100px'; img.style.opacity = '0';
-            const x = Math.random()*(window.innerWidth-100);
-            const y = Math.random()*(window.innerHeight-100);
-            img.style.left = x+'px'; img.style.top = y+'px';
-            document.body.appendChild(img);
-            setTimeout(() => img.style.opacity='1', 100);
-            setTimeout(() => img.style.opacity='0', 3000);
-            setTimeout(() => img.remove(), 3000);
-        }}
-        setInterval(spawnRandomImage, 3000);
-    </script>
-
-    <script>
-        const mucha = document.createElement("img");
-        mucha.src = "mucha.png";
-        mucha.style.position = "fixed";
-        mucha.style.width = "80px";
-        mucha.style.zIndex = 9999;
-        mucha.style.top = "50%";
-        mucha.style.left = "50%";
-        mucha.style.transition = "top 1s linear, left 1s linear";
-        document.body.appendChild(mucha);
-
-        function moveFly() {{
-            const maxX = window.innerWidth - 80;
-            const maxY = window.innerHeight - 80;
-            const x = Math.random() * maxX;
-            const y = Math.random() * maxY;
-            mucha.style.left = x + "px";
-            mucha.style.top = y + "px";
-        }}
-
-        setInterval(moveFly, 1000);
-    </script>
-</body>
-</html>
-"""
 
 def saveRaport(parsedJSON):
     if args.output == '':
         output = "raport.html"
     else:
         output = args.output + "\\raport.html"
-        
+    
+    with open('skeleton.html', 'r') as skeleton:
+        html = skeleton.read()
+
+    table_html = parsedJSON.to_html(index=False)
+    raport = html.replace("{table_html}", table_html)
+    print(raport)
     with open(output, "w") as file:
-        file.write(parsedJSON.to_html(index=False))
+        file.write(raport)
         
     print(f"Report saved to {output}")
     return
@@ -269,7 +185,7 @@ if __name__=="__main__":
 
         if args.rare:
             parsedJSON = parsedJSON[parsedJSON["RARE"]=="+"]
-            
-        saveRaport(parsedJSON) # <-- TUTAJ JEST ZAPISYWANIE DO HTML NATALIA, saveRaport(parsedJSON) ZAPISUJE DO HTML
+        
+        saveRaport(parsedJSON) #Natalia modyfikuj plik skeleton.html. Tam, gdzie ma pojawiać się tabela wstaw <div id="wynik">{table_html}</div>
         
 #Jak będzie trzeba coś jeszcze dodać po mojej stronie np handling flag jakiś czy coś wymyślicie to dajcie znać i ogarne ~Piotr
