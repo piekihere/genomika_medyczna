@@ -11,13 +11,13 @@ parser = argparse.ArgumentParser(
                     epilog='Bioinformatyka rok V')
 parser.add_argument('-i', '--input', help='Sciezka do pliku VCF')
 parser.add_argument('-o', '--output', default='', help='Sciezka do zapisania raportu')
-parser.add_argument("--test", action="store_true", help="TESTOWY") #domyślnie fałsz, ale jak ktoś da w wywolaniu --test to włączy się prawda; do wykorzystania przy flag filtrowania
+parser.add_argument("--show-na", action="store_true", help="Pokazuj warianty bez wpisów w bazach danych (domyslnie falsz)") #domyślnie fałsz, ale jak ktoś da w wywolaniu --test to włączy się prawda; do wykorzystania przy flag filtrowania
 parser.add_argument("--minScore", type=int, default=0, help="TESTOWY") #Domyslnie 0; też do użycia przy filtorwaniu wynikow
 ###Trzeba dodać tutaj inne flagi od funkcji filtrowania np
 args = parser.parse_args()
 
-path = "testowy.vcf" ##Tymczasowa ścieżka do pliku, żeby nie trzeba było odpalać z CLI / do zakomentowania
-#path = args.input
+#path = "testowy.vcf" ##Tymczasowa ścieżka do pliku, żeby nie trzeba było odpalać z CLI / do zakomentowania
+path = args.input
 
 ##Wczytywanie pliku
 def readVCF(path):
@@ -47,6 +47,7 @@ def readVCF(path):
         
     except FileNotFoundError:
         print("The file does not exist.")
+        exit()
 
 ##Tworzenie kwerendy dla MyVariants.info
 #można dodać urozmaicanie kwerend może? https://docs.myvariant.info/en/latest/doc/variant_query_service.html#query-syntax
@@ -75,8 +76,11 @@ def parseJSON(resultsJSON):
     rows_to_append = []
     for result in resultsJSON:
             if result.get("notfound", False):
-                id = result.get('query', 'N/A')
-                rows_to_append.append({'ID':id, 'SCORE':'N/A', 'CHROM':'N/A', 'START':'N/A', 'END':'N/A', 'OBSERVED':'N/A', 'VCF':'N/A', 'SNPEFF':'N/A', 'DBSNP':'N/A'})
+                if args.show_na == True:
+                    id = result.get('query', 'N/A')
+                    rows_to_append.append({'ID':id, 'SCORE':'N/A', 'CHROM':'N/A', 'START':'N/A', 'END':'N/A', 'OBSERVED':'N/A', 'VCF':'N/A', 'SNPEFF':'N/A', 'DBSNP':'N/A'})
+                else:
+                    continue
             else:
                 id = result.get('_id', 'N/A')
                 score = result.get('_score', 'N/A')
@@ -237,6 +241,7 @@ if __name__=="__main__":
     else:
         resultsJSON = json.loads(results)
         parsedJSON = parseJSON(resultsJSON)# <-- TUTAJ JEST DATAFRAME NATALIA, parseJSON(resultsJSON) ZWRACA DATAFRAME
+            
         saveRaport(parsedJSON) # <-- TUTAJ JEST ZAPISYWANIE DO HTML NATALIA, saveRaport(parsedJSON) ZAPISUJE DO HTML
         
 #Jak będzie trzeba coś jeszcze dodać po mojej stronie np handling flag jakiś czy coś wymyślicie to dajcie znać i ogarne ~Piotr
