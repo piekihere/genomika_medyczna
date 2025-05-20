@@ -13,6 +13,7 @@ parser.add_argument('-i', '--input', help='Sciezka do pliku VCF')
 parser.add_argument('-o', '--output', default='', help='Sciezka do zapisania raportu')
 parser.add_argument("--show-na", action="store_true", help="Pokazuj warianty bez wpisów w bazach danych (domyslnie falsz)") #domyślnie fałsz, ale jak ktoś da w wywolaniu --test to włączy się prawda; do wykorzystania przy flag filtrowania
 parser.add_argument("--minScore", type=int, default=0, help="TESTOWY") #Domyslnie 0; też do użycia przy filtorwaniu wynikow
+parser.add_argument("--rare", action="store_true", help="Pokazuje tylko rzadkie")
 ###Trzeba dodać tutaj inne flagi od funkcji filtrowania np
 args = parser.parse_args()
 
@@ -78,7 +79,7 @@ def parseJSON(resultsJSON):
             if result.get("notfound", False):
                 if args.show_na == True:
                     id = result.get('query', 'N/A')
-                    rows_to_append.append({'ID':id, 'SCORE':'N/A', 'CHROM':'N/A', 'START':'N/A', 'END':'N/A', 'OBSERVED':'N/A', 'VCF':'N/A', 'SNPEFF':'N/A', 'DBSNP':'N/A'})
+                    rows_to_append.append({'ID':id, 'SCORE':'N/A', 'CHROM':'N/A', 'START':'N/A', 'END':'N/A', 'OBSERVED':'N/A', 'VCF':'N/A', 'SNPEFF':'N/A', 'DBSNP':'N/A', 'RARE':'N/A'})
                 else:
                     continue
             else:
@@ -108,12 +109,20 @@ def parseJSON(resultsJSON):
                     snpeff = result.get('snpeff', {}).get('ann', 'N/A')
                     
                 dbsnp = ""
+
+                rare = "N/A"
                 for key, value in result.get('dbsnp', {}).items():
                     if key == '_license':
                         continue
+
+                    if key == 'alleles':
+                        rare = check_if_rare(value)
+
+
+
                     dbsnp += f"{key}:{value}; "
-                    
-                rows_to_append.append({'ID':id, 'SCORE':score, 'CHROM':chrom, 'START':start, 'END':end, 'OBSERVED':observed, 'VCF':vcf, 'SNPEFF':snpeff, 'DBSNP':dbsnp})
+
+                rows_to_append.append({'ID':id, 'SCORE':score, 'CHROM':chrom, 'START':start, 'END':end, 'OBSERVED':observed, 'VCF':vcf, 'SNPEFF':snpeff, 'DBSNP':dbsnp,"RARE":rare})
 
 
     df = pd.DataFrame(rows_to_append)
@@ -229,6 +238,22 @@ def saveRaport(parsedJSON):
     print(f"Report saved to {output}")
     return
 
+
+def check_if_rare(alleles, bias=0.01):
+    allele = alleles[-1]
+    total_freq = 0
+    db_counter = 0
+    for db, freq in allele.get("freq", {}).items():
+        if db != "":
+            db_counter += 1
+        total_freq += freq
+    avg = total_freq / db_counter
+    if avg > bias:
+        return "-"
+    else:
+        return "+"
+    return "N/A"
+
 ##MAIN
 if __name__=="__main__":
     vcf = readVCF(path)
@@ -241,6 +266,9 @@ if __name__=="__main__":
     else:
         resultsJSON = json.loads(results)
         parsedJSON = parseJSON(resultsJSON)# <-- TUTAJ JEST DATAFRAME NATALIA, parseJSON(resultsJSON) ZWRACA DATAFRAME
+
+        if args.rare:
+            parsedJSON = parsedJSON[parsedJSON["RARE"]=="+"]
             
         saveRaport(parsedJSON) # <-- TUTAJ JEST ZAPISYWANIE DO HTML NATALIA, saveRaport(parsedJSON) ZAPISUJE DO HTML
         
