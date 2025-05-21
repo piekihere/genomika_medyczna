@@ -30,9 +30,8 @@ def readVCF(path):
                  'QUAL':[],
                  'FILTER':[],
                  'INFO':[],
-                 'FORMAT':[],
-                 'NORMAL':[],
-                 'TUMOR':[]})
+                 'FORMAT':[]
+                 })
     
     try:
         with open(path, "r") as file:
@@ -40,7 +39,7 @@ def readVCF(path):
                 if line[0] == "#":
                     continue
                 values = line.split(sep="\t")
-                values = [n.strip('\n') for n in values]
+                values = [n.strip('\n') for n in values[:9]]
                 vcfValues.loc[-1] = values
                 vcfValues.index = vcfValues.index + 1
                 vcfValues = vcfValues.sort_index()
@@ -79,7 +78,7 @@ def parseJSON(resultsJSON):
             if result.get("notfound", False):
                 if args.show_na == True:
                     id = result.get('query', 'N/A')
-                    rows_to_append.append({'ID':id, 'SCORE':'N/A', 'CHROM':'N/A', 'START':'N/A', 'END':'N/A', 'OBSERVED':'N/A', 'VCF':'N/A', 'SNPEFF':'N/A', 'DBSNP':'N/A', 'RARE':'N/A'})
+                    rows_to_append.append({'ID':id, 'SCORE':'N/A', 'CHROM':'N/A', 'START':'N/A', 'END':'N/A', 'OBSERVED':'N/A', 'VCF':'N/A', 'CLINVAR':'N/A', 'SNPEFF':'N/A', 'DBSNP':'N/A', 'RARE':'N/A'})
                 else:
                     continue
             else:
@@ -93,7 +92,14 @@ def parseJSON(resultsJSON):
                 vcf = ""
                 for key, value in result.get('vcf', {}).items():
                     vcf += f"{key}:{value}; "
+
+                clinvar = ""
+                for key, value in result.get('clinvar', {}).items():
+                    if key == '_license':
+                        continue
+                    clinvar += f"{key}:{value}; "
                     
+
                 snpeff = ""
                 snpeff_type = type(result.get('snpeff',{}).get('ann', 'N/A'))
                 if snpeff_type is dict:
@@ -117,12 +123,15 @@ def parseJSON(resultsJSON):
 
                     if key == 'alleles':
                         rare = check_if_rare(value)
-
-
-
                     dbsnp += f"{key}:{value}; "
 
-                rows_to_append.append({'ID':id, 'SCORE':score, 'CHROM':chrom, 'START':start, 'END':end, 'OBSERVED':observed, 'VCF':vcf, 'SNPEFF':snpeff, 'DBSNP':dbsnp,"RARE":rare})
+                if clinvar == "":
+                    clinvar = "N/A"
+                if dbsnp == "":
+                    dbsnp = "N/A"
+                if snpeff == "":
+                    snpeff = "N/A"
+                rows_to_append.append({'ID':id, 'SCORE':score, 'CHROM':chrom, 'START':start, 'END':end, 'OBSERVED':observed, 'VCF':vcf, 'CLINVAR':clinvar, 'SNPEFF':snpeff, 'DBSNP':dbsnp,"RARE":rare})
 
 
     df = pd.DataFrame(rows_to_append)
@@ -147,7 +156,6 @@ def saveRaport(parsedJSON):
 
     table_html = parsedJSON.to_html(index=False)
     raport = html.replace("{table_html}", table_html)
-    print(raport)
     with open(output, "w") as file:
         file.write(raport)
         
