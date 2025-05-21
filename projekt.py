@@ -5,11 +5,20 @@ import pandas as pd
 import json
 
 ##Parser argumentów z command line
+class SmartFormatter(argparse.HelpFormatter):
+    def _split_lines(self, text, width):
+        if text.startswith('R|'):
+            return text[2:].splitlines()  
+        # this is the RawTextHelpFormatter._split_lines
+        return argparse.HelpFormatter._split_lines(self, text, width)
+
 parser = argparse.ArgumentParser(
                     prog='NAZWA PROGRAMU', ##IDK trzeba coś zdecydować
                     description='Program do zapytywanie MyVariants.info', ##Lepszy opis?
-                    epilog='Bioinformatyka rok V')
-parser.add_argument('-i', '--input', help='Sciezka do pliku VCF')
+                    epilog='Bioinformatyka rok V',
+                    formatter_class=SmartFormatter)
+parser.add_argument('-i', '--input', default='', help='Sciezka do pliku VCF')
+parser.add_argument('--id', default='', help='R|Wyszukuj warianty po ID; możliwe formaty:\n\t *przedzial w chromosomie: np: chr1:69000-70000 \n\t *RSid np. rs58991260 \n\t *konkretny SNP np: chr1:g.35367G>A \n\t *ENSBML gene ID np: ENSG00000113368')
 parser.add_argument('-o', '--output', default='', help='Sciezka do zapisania raportu')
 parser.add_argument("--show-na", action="store_true", help="Pokazuj warianty bez wpisów w bazach danych (domyslnie falsz)") #domyślnie fałsz, ale jak ktoś da w wywolaniu --test to włączy się prawda; do wykorzystania przy flag filtrowania
 parser.add_argument("--minScore", type=int, default=0, help="TESTOWY") #Domyslnie 0; też do użycia przy filtorwaniu wynikow
@@ -18,7 +27,7 @@ parser.add_argument("--rare", action="store_true", help="Pokazuje tylko rzadkie"
 args = parser.parse_args()
 
 #path = "testowy.vcf" ##Tymczasowa ścieżka do pliku, żeby nie trzeba było odpalać z CLI / do zakomentowania
-path = args.input
+#path = args.input
 
 ##Wczytywanie pliku
 def readVCF(path):
@@ -51,9 +60,17 @@ def readVCF(path):
 
 ##Tworzenie kwerendy dla MyVariants.info
 #można dodać urozmaicanie kwerend może? https://docs.myvariant.info/en/latest/doc/variant_query_service.html#query-syntax
-def makeQuery(vcf):
-    ids = vcf['CHROM'] + ':g.' + vcf['POS'] + vcf['REF'] + '>' + vcf['ALT']
-    query = 'q=' + ','.join(ids)
+def makeQuery(values, byID):
+    if byID:
+        if values[:2] == "rs":
+            query = 'q='+ values
+        if values[:4] == "ENSG":
+            query = 'q=cadd.gene.gene_id:' + values
+        if ">" in values or "-" in values:
+            query = 'q=' + values
+    else:
+        ids = values['CHROM'] + ':g.' + values['POS'] + values['REF'] + '>' + values['ALT']
+        query = 'q=' + ','.join(ids)
     return query
 
 ##Wysyłanie i odbieranie zapytania
@@ -181,11 +198,20 @@ if __name__=="__main__":
         print("Showing empty results enabled.")
     if args.rare:
         print("Showing only rare variants.")
-    print("Reading VCF file...")
-    vcf = readVCF(path)
+    if args.input == "" and args.id == "":
+        print("Please use --input for VCF file or --id for searching variants by id!")
+        exit()
+    if args.input != "":
+        print("Reading VCF file...")
+        byID = False
+        values = readVCF(args.input)
+    elif args.id != "":
+        byID = True
+        values = args.id
+        print("Searching for variants by ID...")      
     ###Można też przefiltorwać tutaj po paramaterach z samego pliku VCF i potem takiego dataframe'a przekazać do makeQuery https://docs.myvariant.info/en/latest/doc/variant_query_service.html#query-syntax
     print("Generating queries...")
-    query = makeQuery(vcf)
+    query = makeQuery(values, byID)
     print("Connecting to server...")
     results = askAPI(query)
     if results == 1:
