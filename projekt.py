@@ -115,13 +115,11 @@ def parseJSON(resultsJSON):
                     snpeff = result.get('snpeff', {}).get('ann', 'N/A')
                     
                 dbsnp = ""
-
                 rare = "N/A"
                 for key, value in result.get('dbsnp', {}).items():
                     if key == '_license':
                         continue
-
-                    if key == 'alleles' and args.rare:
+                    if key == 'alleles':
                         rare = check_if_rare(value)
                     dbsnp += f"{key}:{value}; "
 
