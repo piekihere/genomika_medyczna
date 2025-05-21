@@ -180,20 +180,25 @@ def check_if_rare(alleles, bias=0.01):
 
 ##MAIN
 if __name__=="__main__":
+    if args.show_na:
+        print("Showing empty results enabled.")
+    print("Reading VCF file...")
     vcf = readVCF(path)
     ###Można też przefiltorwać tutaj po paramaterach z samego pliku VCF i potem takiego dataframe'a przekazać do makeQuery https://docs.myvariant.info/en/latest/doc/variant_query_service.html#query-syntax
+    print("Generating queries...")
     query = makeQuery(vcf)
+    print("Connecting to server...")
     results = askAPI(query)
     if results == 1:
         print("MyVaraints.info server error")
         exit()
     else:
+        print("Fetching results...")
         resultsJSON = json.loads(results)
         parsedJSON = parseJSON(resultsJSON)# <-- TUTAJ JEST DATAFRAME NATALIA, parseJSON(resultsJSON) ZWRACA DATAFRAME
-
         if args.rare:
             parsedJSON = parsedJSON[parsedJSON["RARE"]=="+"]
-        
+        print("Saving raport...")
         saveRaport(parsedJSON) #Natalia modyfikuj plik skeleton.html. Tam, gdzie ma pojawiać się tabela wstaw <div id="wynik">{table_html}</div>
         
 #Jak będzie trzeba coś jeszcze dodać po mojej stronie np handling flag jakiś czy coś wymyślicie to dajcie znać i ogarne ~Piotr
