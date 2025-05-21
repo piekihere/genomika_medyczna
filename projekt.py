@@ -121,7 +121,7 @@ def parseJSON(resultsJSON):
                     if key == '_license':
                         continue
 
-                    if key == 'alleles':
+                    if key == 'alleles' and args.rare:
                         rare = check_if_rare(value)
                     dbsnp += f"{key}:{value}; "
 
@@ -131,7 +131,9 @@ def parseJSON(resultsJSON):
                     dbsnp = "N/A"
                 if snpeff == "":
                     snpeff = "N/A"
-                rows_to_append.append({'ID':id, 'SCORE':score, 'CHROM':chrom, 'START':start, 'END':end, 'OBSERVED':observed, 'VCF':vcf, 'CLINVAR':clinvar, 'SNPEFF':snpeff, 'DBSNP':dbsnp,"RARE":rare})
+                rows_to_append.append({'ID':id, 'SCORE':score, 'CHROM':chrom, 'START':start, 'END':end, 'OBSERVED':observed, 'VCF':vcf, 'CLINVAR':clinvar, 'SNPEFF':snpeff, 'DBSNP':dbsnp})
+                if args.rare:
+                    rows_to_append[-1]["RARE"] = rare
 
 
     df = pd.DataFrame(rows_to_append)
@@ -182,6 +184,8 @@ def check_if_rare(alleles, bias=0.01):
 if __name__=="__main__":
     if args.show_na:
         print("Showing empty results enabled.")
+    if args.rare:
+        print("Showing only rare variants.")
     print("Reading VCF file...")
     vcf = readVCF(path)
     ###Można też przefiltorwać tutaj po paramaterach z samego pliku VCF i potem takiego dataframe'a przekazać do makeQuery https://docs.myvariant.info/en/latest/doc/variant_query_service.html#query-syntax
