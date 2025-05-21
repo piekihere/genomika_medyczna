@@ -7,10 +7,7 @@ import json
 ##Parser argumentów z command line
 class SmartFormatter(argparse.HelpFormatter):
     def _split_lines(self, text, width):
-        if text.startswith('R|'):
-            return text[2:].splitlines()  
-        # this is the RawTextHelpFormatter._split_lines
-        return argparse.HelpFormatter._split_lines(self, text, width)
+        return text.splitlines()  
 
 parser = argparse.ArgumentParser(
                     prog='NAZWA PROGRAMU', ##IDK trzeba coś zdecydować
@@ -18,10 +15,9 @@ parser = argparse.ArgumentParser(
                     epilog='Bioinformatyka rok V',
                     formatter_class=SmartFormatter)
 parser.add_argument('-i', '--input', default='', help='Sciezka do pliku VCF')
-parser.add_argument('--id', default='', help='R|Wyszukuj warianty po ID; możliwe formaty:\n\t *przedzial w chromosomie: np: chr1:69000-70000 \n\t *RSid np. rs58991260 \n\t *konkretny SNP np: chr1:g.35367G>A \n\t *ENSBML gene ID np: ENSG00000113368')
+parser.add_argument('--id', default='', help='Wyszukuj warianty po ID; możliwe formaty:\n\t -RSid np. rs58991260 \n\t -konkretny SNP np: chr1:g.35367G>A \n\t -ENSBML gene ID np: ENSG00000113368')
 parser.add_argument('-o', '--output', default='', help='Sciezka do zapisania raportu')
 parser.add_argument("--show-na", action="store_true", help="Pokazuj warianty bez wpisów w bazach danych (domyslnie falsz)") #domyślnie fałsz, ale jak ktoś da w wywolaniu --test to włączy się prawda; do wykorzystania przy flag filtrowania
-parser.add_argument("--minScore", type=int, default=0, help="TESTOWY") #Domyslnie 0; też do użycia przy filtorwaniu wynikow
 parser.add_argument("--rare", action="store_true", help="Pokazuje tylko rzadkie")
 parser.add_argument("--pathogenic", action="store_true", help="Pokazuje tylko warianty klinicznie patogeniczne")
 ###Trzeba dodać tutaj inne flagi od funkcji filtrowania np
@@ -60,15 +56,18 @@ def readVCF(path):
         exit()
 
 ##Tworzenie kwerendy dla MyVariants.info
-#można dodać urozmaicanie kwerend może? https://docs.myvariant.info/en/latest/doc/variant_query_service.html#query-syntax
 def makeQuery(values, byID):
     if byID:
         if values[:2] == "rs":
-            query = 'q='+ values
-        if values[:4] == "ENSG":
-            query = 'q=cadd.gene.gene_id:' + values
-        if ">" in values or "-" in values:
+            query = 'q='+ values + '&scopes=dbsnp.rsid'
+        elif values[:4] == "ENSG":
+            query = 'q=' + values + '&scopes=dbnsfp.ensembl.geneid'
+        elif ">" in values:
             query = 'q=' + values
+        else:
+            print("Invalid ID syntax. Please use one of the following:\n\t -RSid np. rs58991260 \n\t -konkretny SNP np: chr1:g.35367G>A \n\t -ENSBML gene ID np: ENSG00000113368")
+            #parser.print_help()
+            exit()
     else:
         ids = values['CHROM'] + ':g.' + values['POS'] + values['REF'] + '>' + values['ALT']
         query = 'q=' + ','.join(ids)
@@ -193,6 +192,10 @@ def check_if_rare(alleles, bias=0.01):
         return "+"
     return "N/A"
 
+# CLING SIG
+def ClinicalSignificance(result):
+    return result.get("clinvar", {}).get("rcv", {}).get("clinical_significance", "N/A")
+
 ##MAIN
 if __name__=="__main__":
     if args.show_na:
@@ -207,10 +210,10 @@ if __name__=="__main__":
         byID = False
         values = readVCF(args.input)
     elif args.id != "":
+        print("Searching for variants by ID...")
         byID = True
         values = args.id
-        print("Searching for variants by ID...")      
-    ###Można też przefiltorwać tutaj po paramaterach z samego pliku VCF i potem takiego dataframe'a przekazać do makeQuery https://docs.myvariant.info/en/latest/doc/variant_query_service.html#query-syntax
+
     print("Generating queries...")
     query = makeQuery(values, byID)
     print("Connecting to server...")
@@ -221,11 +224,11 @@ if __name__=="__main__":
     else:
         print("Fetching results...")
         resultsJSON = json.loads(results)
+        if byID:
+            if 'notfound' in resultsJSON[0].keys():
+                print("Cannot find variant with given ID.")
+                exit()
         parsedJSON = parseJSON(resultsJSON)# <-- TUTAJ JEST DATAFRAME NATALIA, parseJSON(resultsJSON) ZWRACA DATAFRAME
-
-        # CLING SIG
-        def ClinicalSignificance(result):
-            return result.get("clinvar", {}).get("rcv", {}).get("clinical_significance", "N/A")
 
         clinical_significance = []
         for result in resultsJSON:
@@ -234,10 +237,9 @@ if __name__=="__main__":
             clinical_significance.append(ClinicalSignificance(result))
 
         parsedJSON["CLINICAL_SIGNIFICANCE"] = clinical_significance
-
-
         if args.rare:
             parsedJSON = parsedJSON[parsedJSON["RARE"]=="+"]
+
         if args.pathogenic:
             parsedJSON = parsedJSON[parsedJSON["CLINICAL_SIGNIFICANCE"].str.lower() == "pathogenic"]
 
