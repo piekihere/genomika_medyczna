@@ -227,13 +227,21 @@ if __name__=="__main__":
             clinical_significance.append(ClinicalSignificance(result))
 
         parsedJSON["CLINICAL_SIGNIFICANCE"] = clinical_significance
+        parsedJSON = parsedJSON[parsedJSON["RARE"]=="+"]
         if args.rare:
-            print("Saving only rare variants.")
-            parsedJSON = parsedJSON[parsedJSON["RARE"]=="+"]
+            if parsedJSON.empty:
+                print("No rare variants found!")
+                exit()
+            else:
+                print("Saving only rare variants.")
 
         if args.pathogenic:
-            print("Saving only pathogenic variants.")
             parsedJSON = parsedJSON[parsedJSON["CLINICAL_SIGNIFICANCE"].str.lower() == "pathogenic"]
+            if parsedJSON.empty:
+                print("No pathogenic variants found!")
+                exit()
+            else:
+                print("Saving only pathogenic variants.")
 
         print("Saving raport...")
         saveRaport(parsedJSON) #Natalia modyfikuj plik skeleton.html. Tam, gdzie ma pojawiać się tabela wstaw <div id="wynik">{table_html}</div>
