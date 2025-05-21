@@ -5,20 +5,30 @@ import pandas as pd
 import json
 
 ##Parser argumentów z command line
+class SmartFormatter(argparse.HelpFormatter):
+    def _split_lines(self, text, width):
+        if text.startswith('R|'):
+            return text[2:].splitlines()  
+        # this is the RawTextHelpFormatter._split_lines
+        return argparse.HelpFormatter._split_lines(self, text, width)
+
 parser = argparse.ArgumentParser(
                     prog='NAZWA PROGRAMU', ##IDK trzeba coś zdecydować
                     description='Program do zapytywanie MyVariants.info', ##Lepszy opis?
-                    epilog='Bioinformatyka rok V')
-parser.add_argument('-i', '--input', help='Sciezka do pliku VCF')
+                    epilog='Bioinformatyka rok V',
+                    formatter_class=SmartFormatter)
+parser.add_argument('-i', '--input', default='', help='Sciezka do pliku VCF')
+parser.add_argument('--id', default='', help='R|Wyszukuj warianty po ID; możliwe formaty:\n\t *przedzial w chromosomie: np: chr1:69000-70000 \n\t *RSid np. rs58991260 \n\t *konkretny SNP np: chr1:g.35367G>A \n\t *ENSBML gene ID np: ENSG00000113368')
 parser.add_argument('-o', '--output', default='', help='Sciezka do zapisania raportu')
 parser.add_argument("--show-na", action="store_true", help="Pokazuj warianty bez wpisów w bazach danych (domyslnie falsz)") #domyślnie fałsz, ale jak ktoś da w wywolaniu --test to włączy się prawda; do wykorzystania przy flag filtrowania
 parser.add_argument("--minScore", type=int, default=0, help="TESTOWY") #Domyslnie 0; też do użycia przy filtorwaniu wynikow
 parser.add_argument("--rare", action="store_true", help="Pokazuje tylko rzadkie")
+parser.add_argument("--pathogenic", action="store_true", help="Pokazuje tylko warianty klinicznie patogeniczne")
 ###Trzeba dodać tutaj inne flagi od funkcji filtrowania np
 args = parser.parse_args()
 
 #path = "testowy.vcf" ##Tymczasowa ścieżka do pliku, żeby nie trzeba było odpalać z CLI / do zakomentowania
-path = args.input
+#path = args.input
 
 ##Wczytywanie pliku
 def readVCF(path):
@@ -30,9 +40,8 @@ def readVCF(path):
                  'QUAL':[],
                  'FILTER':[],
                  'INFO':[],
-                 'FORMAT':[],
-                 'NORMAL':[],
-                 'TUMOR':[]})
+                 'FORMAT':[]
+                 })
     
     try:
         with open(path, "r") as file:
@@ -40,7 +49,7 @@ def readVCF(path):
                 if line[0] == "#":
                     continue
                 values = line.split(sep="\t")
-                values = [n.strip('\n') for n in values]
+                values = [n.strip('\n') for n in values[:9]]
                 vcfValues.loc[-1] = values
                 vcfValues.index = vcfValues.index + 1
                 vcfValues = vcfValues.sort_index()
@@ -52,9 +61,17 @@ def readVCF(path):
 
 ##Tworzenie kwerendy dla MyVariants.info
 #można dodać urozmaicanie kwerend może? https://docs.myvariant.info/en/latest/doc/variant_query_service.html#query-syntax
-def makeQuery(vcf):
-    ids = vcf['CHROM'] + ':g.' + vcf['POS'] + vcf['REF'] + '>' + vcf['ALT']
-    query = 'q=' + ','.join(ids)
+def makeQuery(values, byID):
+    if byID:
+        if values[:2] == "rs":
+            query = 'q='+ values
+        if values[:4] == "ENSG":
+            query = 'q=cadd.gene.gene_id:' + values
+        if ">" in values or "-" in values:
+            query = 'q=' + values
+    else:
+        ids = values['CHROM'] + ':g.' + values['POS'] + values['REF'] + '>' + values['ALT']
+        query = 'q=' + ','.join(ids)
     return query
 
 ##Wysyłanie i odbieranie zapytania
@@ -79,7 +96,7 @@ def parseJSON(resultsJSON):
             if result.get("notfound", False):
                 if args.show_na == True:
                     id = result.get('query', 'N/A')
-                    rows_to_append.append({'ID':id, 'SCORE':'N/A', 'CHROM':'N/A', 'START':'N/A', 'END':'N/A', 'OBSERVED':'N/A', 'VCF':'N/A', 'SNPEFF':'N/A', 'DBSNP':'N/A', 'RARE':'N/A'})
+                    rows_to_append.append({'ID':id, 'SCORE':'N/A', 'CHROM':'N/A', 'START':'N/A', 'END':'N/A', 'OBSERVED':'N/A', 'VCF':'N/A', 'CLINVAR':'N/A', 'SNPEFF':'N/A', 'DBSNP':'N/A', 'RARE':'N/A'})
                 else:
                     continue
             else:
@@ -93,7 +110,14 @@ def parseJSON(resultsJSON):
                 vcf = ""
                 for key, value in result.get('vcf', {}).items():
                     vcf += f"{key}:{value}; "
+
+                clinvar = ""
+                for key, value in result.get('clinvar', {}).items():
+                    if key == '_license':
+                        continue
+                    clinvar += f"{key}:{value}; "
                     
+
                 snpeff = ""
                 snpeff_type = type(result.get('snpeff',{}).get('ann', 'N/A'))
                 if snpeff_type is dict:
@@ -109,21 +133,21 @@ def parseJSON(resultsJSON):
                     snpeff = result.get('snpeff', {}).get('ann', 'N/A')
                     
                 dbsnp = ""
-
                 rare = "N/A"
                 for key, value in result.get('dbsnp', {}).items():
                     if key == '_license':
                         continue
-
                     if key == 'alleles':
                         rare = check_if_rare(value)
-
-
-
                     dbsnp += f"{key}:{value}; "
 
-                rows_to_append.append({'ID':id, 'SCORE':score, 'CHROM':chrom, 'START':start, 'END':end, 'OBSERVED':observed, 'VCF':vcf, 'SNPEFF':snpeff, 'DBSNP':dbsnp,"RARE":rare})
-
+                if clinvar == "":
+                    clinvar = "N/A"
+                if dbsnp == "":
+                    dbsnp = "N/A"
+                if snpeff == "":
+                    snpeff = "N/A"
+                rows_to_append.append({'ID':id, 'SCORE':score, 'CHROM':chrom, 'START':start, 'END':end, 'OBSERVED':observed, 'VCF':vcf, 'CLINVAR':clinvar, 'SNPEFF':snpeff, 'DBSNP':dbsnp, 'RARE': rare})
 
     df = pd.DataFrame(rows_to_append)
 
@@ -133,107 +157,22 @@ def parseJSON(resultsJSON):
 #NATALIA, ZAPISUJESZ DO HTMLA W TYM MIEJSCU, CZUJ SIE WOLNA ZMIENIĆ WSZYSTKO CO CHCESZ
 #https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.to_html.html
 #mam nadzieje ze wam to tez dziala XD
-    table_html = df.to_html(index=False, border=1, classes='display')
-    full_html = f"""
-<!DOCTYPE html>
-<html lang="pl">
-<head>
-    <meta charset="UTF-8">
-    <title>Projekt</title>
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
-    <style>
-        body {{
-            text-align: center;
-            font-family: Comic Sans MS;
-            background-image: url('https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExMzZ0czE4eW4wZWsxNWhiaGh3cjhoZHFxOW9leWd5eDZ2cGZvbnczdCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/ECWLeGxcKasCc/giphy.gif');
-            background-size: cover;
-            color: #000;
-        }}
-        table.display {{
-            background-color: rgba(255,255,255,0.8);
-            margin: 20px auto;
-            border-collapse: collapse;
-        }}
-        th, td {{ padding: 10px; border: 1px solid #aaa; }}
-    </style>
-    <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
-    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-</head>
-<body>
-    <h1>PROJEKTTTT</h1>
-    <img src="https://media.giphy.com/media/13borq7Zo2kulO/giphy.gif" width="300" alt="Jednorożec">
-    <img src="https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExY245NG84OXE5eDk1ZW5mOG1xM3E5bHR6emR6OHRjNmtxNHViajdhZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/2A75RyXVzzSI2bx4Gj/giphy.gif" width="300" alt="Tęcza">
 
-    <div>
-        {table_html}
-    </div>
 
-    <script>
-        $(document).ready(function() {{
-            $('table.display').DataTable({{
-                paging: true,
-                searching: true,
-                ordering: true,
-                info: true
-            }});
-        }});
-    </script>
-
-    <audio autoplay loop>
-        <source src="magiczna_muzyka.mp3" type="audio/mpeg">
-    </audio>
-
-    <script>
-        function spawnRandomImage() {{
-            const img = document.createElement('img');
-            img.src = 'phd.png';
-            img.style.position = 'fixed';
-            img.style.width = '100px'; img.style.opacity = '0';
-            const x = Math.random()*(window.innerWidth-100);
-            const y = Math.random()*(window.innerHeight-100);
-            img.style.left = x+'px'; img.style.top = y+'px';
-            document.body.appendChild(img);
-            setTimeout(() => img.style.opacity='1', 100);
-            setTimeout(() => img.style.opacity='0', 3000);
-            setTimeout(() => img.remove(), 3000);
-        }}
-        setInterval(spawnRandomImage, 3000);
-    </script>
-
-    <script>
-        const mucha = document.createElement("img");
-        mucha.src = "mucha.png";
-        mucha.style.position = "fixed";
-        mucha.style.width = "80px";
-        mucha.style.zIndex = 9999;
-        mucha.style.top = "50%";
-        mucha.style.left = "50%";
-        mucha.style.transition = "top 1s linear, left 1s linear";
-        document.body.appendChild(mucha);
-
-        function moveFly() {{
-            const maxX = window.innerWidth - 80;
-            const maxY = window.innerHeight - 80;
-            const x = Math.random() * maxX;
-            const y = Math.random() * maxY;
-            mucha.style.left = x + "px";
-            mucha.style.top = y + "px";
-        }}
-
-        setInterval(moveFly, 1000);
-    </script>
-</body>
-</html>
-"""
 
 def saveRaport(parsedJSON):
     if args.output == '':
         output = "raport.html"
     else:
         output = args.output + "\\raport.html"
-        
+    
+    with open('skeleton.html', 'r') as skeleton:
+        html = skeleton.read()
+
+    table_html = parsedJSON.to_html(index=False)
+    raport = html.replace("{table_html}", table_html)
     with open(output, "w") as file:
-        file.write(parsedJSON.to_html(index=False))
+        file.write(raport)
         
     print(f"Report saved to {output}")
     return
@@ -257,20 +196,53 @@ def check_if_rare(alleles, bias=0.01):
 
 ##MAIN
 if __name__=="__main__":
-    vcf = readVCF(path)
+    if args.show_na:
+        print("Showing empty results enabled.")
+    if args.rare:
+        print("Showing only rare variants.")
+    if args.input == "" and args.id == "":
+        print("Please use --input for VCF file or --id for searching variants by id!")
+        exit()
+    if args.input != "":
+        print("Reading VCF file...")
+        byID = False
+        values = readVCF(args.input)
+    elif args.id != "":
+        byID = True
+        values = args.id
+        print("Searching for variants by ID...")      
     ###Można też przefiltorwać tutaj po paramaterach z samego pliku VCF i potem takiego dataframe'a przekazać do makeQuery https://docs.myvariant.info/en/latest/doc/variant_query_service.html#query-syntax
-    query = makeQuery(vcf)
+    print("Generating queries...")
+    query = makeQuery(values, byID)
+    print("Connecting to server...")
     results = askAPI(query)
     if results == 1:
         print("MyVaraints.info server error")
         exit()
     else:
+        print("Fetching results...")
         resultsJSON = json.loads(results)
         parsedJSON = parseJSON(resultsJSON)# <-- TUTAJ JEST DATAFRAME NATALIA, parseJSON(resultsJSON) ZWRACA DATAFRAME
 
+        # CLING SIG
+        def ClinicalSignificance(result):
+            return result.get("clinvar", {}).get("rcv", {}).get("clinical_significance", "N/A")
+
+        clinical_significance = []
+        for result in resultsJSON:
+            if result.get("notfound", False) and not args.show_na:
+                continue 
+            clinical_significance.append(ClinicalSignificance(result))
+
+        parsedJSON["CLINICAL_SIGNIFICANCE"] = clinical_significance
+
+
         if args.rare:
             parsedJSON = parsedJSON[parsedJSON["RARE"]=="+"]
-            
-        saveRaport(parsedJSON) # <-- TUTAJ JEST ZAPISYWANIE DO HTML NATALIA, saveRaport(parsedJSON) ZAPISUJE DO HTML
+        if args.pathogenic:
+            parsedJSON = parsedJSON[parsedJSON["CLINICAL_SIGNIFICANCE"].str.lower() == "pathogenic"]
+
+        print("Saving raport...")
+        saveRaport(parsedJSON) #Natalia modyfikuj plik skeleton.html. Tam, gdzie ma pojawiać się tabela wstaw <div id="wynik">{table_html}</div>
         
 #Jak będzie trzeba coś jeszcze dodać po mojej stronie np handling flag jakiś czy coś wymyślicie to dajcie znać i ogarne ~Piotr
