@@ -23,6 +23,7 @@ parser.add_argument('-o', '--output', default='', help='Sciezka do zapisania rap
 parser.add_argument("--show-na", action="store_true", help="Pokazuj warianty bez wpisów w bazach danych (domyslnie falsz)") #domyślnie fałsz, ale jak ktoś da w wywolaniu --test to włączy się prawda; do wykorzystania przy flag filtrowania
 parser.add_argument("--minScore", type=int, default=0, help="TESTOWY") #Domyslnie 0; też do użycia przy filtorwaniu wynikow
 parser.add_argument("--rare", action="store_true", help="Pokazuje tylko rzadkie")
+parser.add_argument("--pathogenic", action="store_true", help="Pokazuje tylko warianty klinicznie patogeniczne")
 ###Trzeba dodać tutaj inne flagi od funkcji filtrowania np
 args = parser.parse_args()
 
@@ -221,8 +222,25 @@ if __name__=="__main__":
         print("Fetching results...")
         resultsJSON = json.loads(results)
         parsedJSON = parseJSON(resultsJSON)# <-- TUTAJ JEST DATAFRAME NATALIA, parseJSON(resultsJSON) ZWRACA DATAFRAME
+
+        # CLING SIG
+        def ClinicalSignificance(result):
+            return result.get("clinvar", {}).get("rcv", {}).get("clinical_significance", "N/A")
+
+        clinical_significance = []
+        for result in resultsJSON:
+            if result.get("notfound", False) and not args.show_na:
+                continue 
+            clinical_significance.append(ClinicalSignificance(result))
+
+        parsedJSON["CLINICAL_SIGNIFICANCE"] = clinical_significance
+
+
         if args.rare:
             parsedJSON = parsedJSON[parsedJSON["RARE"]=="+"]
+        if args.pathogenic:
+            parsedJSON = parsedJSON[parsedJSON["CLINICAL_SIGNIFICANCE"].str.lower() == "pathogenic"]
+
         print("Saving raport...")
         saveRaport(parsedJSON) #Natalia modyfikuj plik skeleton.html. Tam, gdzie ma pojawiać się tabela wstaw <div id="wynik">{table_html}</div>
         
