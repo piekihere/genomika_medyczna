@@ -11,20 +11,17 @@ class SmartFormatter(argparse.HelpFormatter):
 
 parser = argparse.ArgumentParser(
                     prog='NAZWA PROGRAMU', ##IDK trzeba coś zdecydować
-                    description='Program do zapytywanie MyVariants.info', ##Lepszy opis?
+                    description='Search ClinVar, DBSNP and SnpEff for described variant in VCF file or by variant ID.',
                     epilog='Bioinformatyka rok V',
                     formatter_class=SmartFormatter)
-parser.add_argument('-i', '--input', default='', help='Sciezka do pliku VCF')
-parser.add_argument('--id', default='', help='Wyszukuj warianty po ID; możliwe formaty:\n\t -RSid np. rs58991260 \n\t -konkretny SNP np: chr1:g.35367G>A \n\t -ENSBML gene ID np: ENSG00000113368')
-parser.add_argument('-o', '--output', default='', help='Sciezka do zapisania raportu')
-parser.add_argument("--show-na", action="store_true", help="Pokazuj warianty bez wpisów w bazach danych (domyslnie falsz)") #domyślnie fałsz, ale jak ktoś da w wywolaniu --test to włączy się prawda; do wykorzystania przy flag filtrowania
-parser.add_argument("--rare", action="store_true", help="Pokazuje tylko rzadkie")
-parser.add_argument("--pathogenic", action="store_true", help="Pokazuje tylko warianty klinicznie patogeniczne")
+parser.add_argument('-i', '--input', default='', help='Path to VCF file')
+parser.add_argument('--id', default='', help='Search for variants by ID. Possible formats:\n\t -RSid e.g. rs58991260 \n\t -specific SNP e.g. chr1:g.35367G>A \n\t -ENSBML gene ID e.g. ENSG00000113368')
+parser.add_argument('-o', '--output', default='', help='Path to output file.')
+parser.add_argument("--show-na", action="store_true", help="Show variants even if there is no information for them in the databases") #domyślnie fałsz, ale jak ktoś da w wywolaniu --test to włączy się prawda; do wykorzystania przy flag filtrowania
+parser.add_argument("--rare", action="store_true", help="Save only rare variants")
+parser.add_argument("--pathogenic", action="store_true", help="Save only pathogenic variants.")
 ###Trzeba dodać tutaj inne flagi od funkcji filtrowania np
 args = parser.parse_args()
-
-#path = "testowy.vcf" ##Tymczasowa ścieżka do pliku, żeby nie trzeba było odpalać z CLI / do zakomentowania
-#path = args.input
 
 ##Wczytywanie pliku
 def readVCF(path):
@@ -153,12 +150,6 @@ def parseJSON(resultsJSON):
     return df
     
 ##Zapisywanie raportu w HTML
-#NATALIA, ZAPISUJESZ DO HTMLA W TYM MIEJSCU, CZUJ SIE WOLNA ZMIENIĆ WSZYSTKO CO CHCESZ
-#https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.to_html.html
-#mam nadzieje ze wam to tez dziala XD
-
-
-
 def saveRaport(parsedJSON):
     if args.output == '':
         output = "raport.html"
@@ -176,7 +167,7 @@ def saveRaport(parsedJSON):
     print(f"Report saved to {output}")
     return
 
-
+##SPrawdzanie rzadkości
 def check_if_rare(alleles, bias=0.01):
     allele = alleles[-1]
     total_freq = 0
@@ -201,8 +192,6 @@ def ClinicalSignificance(result):
 if __name__=="__main__":
     if args.show_na:
         print("Showing empty results enabled.")
-    if args.rare:
-        print("Showing only rare variants.")
     if args.input == "" and args.id == "":
         print("Please use --input for VCF file or --id for searching variants by id!")
         exit()
@@ -239,9 +228,11 @@ if __name__=="__main__":
 
         parsedJSON["CLINICAL_SIGNIFICANCE"] = clinical_significance
         if args.rare:
+            print("Saving only rare variants.")
             parsedJSON = parsedJSON[parsedJSON["RARE"]=="+"]
 
         if args.pathogenic:
+            print("Saving only pathogenic variants.")
             parsedJSON = parsedJSON[parsedJSON["CLINICAL_SIGNIFICANCE"].str.lower() == "pathogenic"]
 
         print("Saving raport...")
