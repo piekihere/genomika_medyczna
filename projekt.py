@@ -185,11 +185,12 @@ def check_if_rare(alleles, bias=0.01):
         if db != "":
             db_counter += 1
         total_freq += freq
-    avg = total_freq / db_counter
-    if avg > bias:
-        return "-"
-    else:
-        return "+"
+    if db_counter != 0:
+        avg = total_freq / db_counter
+        if avg > bias:
+            return "-"
+        else:
+            return "+"
     return "N/A"
 
 # CLING SIG
