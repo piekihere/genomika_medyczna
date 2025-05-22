@@ -4,6 +4,9 @@ import httplib2
 import pandas as pd
 import json
 import datetime
+from pathlib import Path
+
+ROOT_DIR = Path(__file__).parent
 
 def wrap_collapsible(label: str, content: str) -> str:
     return f'''
@@ -202,19 +205,19 @@ def saveReport(parsedJSON):
         else:
              output = args.output + ".html"
     
-    with open('bin/skeleton.html', "r") as skeleton:
+    with open(str(ROOT_DIR)+'/bin/skeleton.html', "r") as skeleton:
         html = skeleton.read()
-    with open("bin/style.css") as style:
+    with open(str(ROOT_DIR)+'/bin/style.css') as style:
         html = html.replace("{tabelStyle}", style.read())
-    with open("bin/base64/favicon.base64") as favicon:
+    with open(str(ROOT_DIR)+"/bin/base64/favicon.base64") as favicon:
         html = html.replace("{faviconBase64}", favicon.read())
-    with open("bin/base64/logo.base64") as logo:
+    with open(str(ROOT_DIR)+"/bin/base64/logo.base64") as logo:
         html = html.replace("{logoBase64}", logo.read())      
-    with open("bin/js/jQuery.js") as jQuery:
+    with open(str(ROOT_DIR)+"/bin/js/jQuery.js") as jQuery:
         html = html.replace("{jQuery}", jQuery.read())
-    with open("bin/js/mark.js") as markJS:
+    with open(str(ROOT_DIR)+"/bin/js/mark.js") as markJS:
         html = html.replace("{markJS}", markJS.read())
-    with open("bin/js/DataTables.js") as dataTableJS:
+    with open(str(ROOT_DIR)+"/bin/js/DataTables.js") as dataTableJS:
         html = html.replace("{DataTables}", dataTableJS.read())
     
     if args.input == "":
