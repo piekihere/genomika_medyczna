@@ -3,6 +3,57 @@ import argparse
 import httplib2
 import pandas as pd
 import json
+def wrap_collapsible(label: str, content: str) -> str:
+    return f'''
+    <details>
+      <summary>{label}</summary>
+      <div style="white-space:pre-wrap; padding: 5px;">{content}</div>
+    </details>
+    '''
+#
+#def auto_wrap_collapsible(field_name: str, value: str, limit: int = 80) -> str:
+#    if isinstance(value, str) and len(value) > limit:
+#        return wrap_collapsible(f"Show {field_name}", value)
+#    return value
+def prettify_nested(value, indent=0):
+    if isinstance(value, dict):
+        html = ""
+        for k, v in value.items():
+            html += f"<details><summary>{k}</summary>{prettify_nested(v, indent + 1)}</details>"
+        return html
+    elif isinstance(value, list):
+        html = ""
+        for item in value:
+            html += f"<div style='margin-left:{indent * 15}px'>{prettify_nested(item, indent + 1)}</div>"
+        return html
+    else:
+        cleaned = str(value).replace("\\n", "<br>").replace("\n", "<br>").replace("<br><br>", "<br>")
+
+        return f"<div style='margin-left:{indent * 15}px'>{cleaned}</div>"
+
+
+def auto_wrap_collapsible(field_name: str, value: str, limit: int = 80) -> str:
+    try:
+        parsed = json.loads(value)
+        if isinstance(parsed, (dict, list)):
+            content = prettify_nested(parsed)
+            return wrap_collapsible(f"Show {field_name}", content)
+    except Exception:
+        pass
+
+    clean_value = str(value).replace("\\n", "<br>").replace("\n", "<br>").replace("<br><br>", "<br>")
+    if isinstance(value, str) and len(value) > limit:
+        return wrap_collapsible(f"Show {field_name}", clean_value)
+    return clean_value
+
+
+
+def df_to_html(df):
+    df_copy = df.copy()
+    for col in ["VCF", "CLINVAR", "SNPEFF", "DBSNP"]:
+        if col in df_copy.columns:
+            df_copy[col] = df_copy[col].apply(lambda x: auto_wrap_collapsible(col, x))
+    return df_copy.to_html(classes="display", escape=False, index=False)
 
 ##Parser argumentów z command line
 class SmartFormatter(argparse.HelpFormatter):
@@ -103,39 +154,24 @@ def parseJSON(resultsJSON):
                 end   = result.get('hg19', {}).get('end', 'N/A')
                 observed = result.get('observed', 'N/A')
                 
-                vcf = ""
-                for key, value in result.get('vcf', {}).items():
-                    vcf += f"{key}:{value}; "
+                vcf_dict = result.get('vcf', {})
+                vcf = json.dumps(vcf_dict)
 
-                clinvar = ""
-                for key, value in result.get('clinvar', {}).items():
-                    if key == '_license':
-                        continue
-                    clinvar += f"{key}:{value}; "
-                    
 
-                snpeff = ""
-                snpeff_type = type(result.get('snpeff',{}).get('ann', 'N/A'))
-                if snpeff_type is dict:
-                    for key, value in result['snpeff']['ann'].items():
-                        snpeff += f"{key}:{value}; "
-                        pass
-                elif snpeff_type is list:
-                    for annot in result.get('snpeff',{}).get('ann', 'N/A'):
-                        for key, value in annot.items():
-                            snpeff += f"{key}:{value}; "
-                        snpeff += '|'
+                clinvar_dict = {k: v for k, v in result.get('clinvar', {}).items() if k != '_license'}
+                clinvar = json.dumps(clinvar_dict)
+
+                snpeff_data = result.get('snpeff', {}).get('ann', 'N/A')
+                snpeff = json.dumps(snpeff_data)
+
+
+                dbsnp_dict = {k: v for k, v in result.get('dbsnp', {}).items() if k != '_license'}
+                if 'alleles' in dbsnp_dict:
+                    rare = check_if_rare(dbsnp_dict['alleles'])
                 else:
-                    snpeff = result.get('snpeff', {}).get('ann', 'N/A')
-                    
-                dbsnp = ""
-                rare = "N/A"
-                for key, value in result.get('dbsnp', {}).items():
-                    if key == '_license':
-                        continue
-                    if key == 'alleles':
-                        rare = check_if_rare(value)
-                    dbsnp += f"{key}:{value}; "
+                    rare = "N/A"
+                dbsnp = json.dumps(dbsnp_dict)
+
 
                 if clinvar == "":
                     clinvar = "N/A"
@@ -159,7 +195,9 @@ def saveRaport(parsedJSON):
     with open('skeleton.html', 'r') as skeleton:
         html = skeleton.read()
 
-    table_html = parsedJSON.to_html(index=False)
+    table_html = df_to_html(parsedJSON)
+
+
     raport = html.replace("{table_html}", table_html)
     with open(output, "w") as file:
         file.write(raport)
