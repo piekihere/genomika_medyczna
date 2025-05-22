@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Varianinator raport</title>
+
+    <!-- <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css"/> -->
+     <!-- IKONA -->
+    <link rel="icon" href="{faviconBase64}">
+
+    <style>
+        {tabelStyle}
+    </style>
+</head>
+<body>
+
+    <!-- LOGO -->
+    <div style="margin-bottom: 20px;">
+    <img src="{logoBase64}" alt="Varianinator logo" style="max-width: 300px;">
+        Showing results for <b>{input}</b>.
+    </div>
+    <!-- Tabela wyników -->
+    <div id="wynik">
+        {table_html}
+        Generated time: {time}
+    </div>
+
+    
+    <!-- <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script> -->
+    <script>{jQuery}</script>
+    <!-- <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script> -->
+    <script>{DataTables}</script>
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/mark.js/8.11.1/mark.min.js"></script> -->
+    <script>{markJS}</script>
+    <!-- not found <script src="https://cdn.datatables.net/plug-ins/1.13.6/features/mark/dataTables.mark.min.js"></script> -->
+    <script>
+        $(document).ready(function () {
+            var table = $('table.display').DataTable({
+                paging: true,
+                pageLength: 10,
+                lengthMenu: [10, 25, 50, 100],
+                order: [],
+                mark: true,
+            
+                language: {
+                    search: "Search:",
+                    lengthMenu: "Show _MENU_ variants",
+                    info: "Showing _START_ to _END_ of _TOTAL_ entries",
+                    paginate: {
+                        next: "Next",
+                        previous: "Previous"
+                    }
+                }
+            });
+
+            
+            document.querySelectorAll("td, th").forEach(cell => {
+                cell.innerHTML = cell.innerHTML.replace(/\\n/g, ' ').replace(/\n/g, ' ').trim();
+            });
+
+            
+            document.querySelectorAll("th").forEach(cell => {
+                cell.innerHTML = cell.textContent.replace(/_/g, "<br>");
+            });
+        });
+    </script>
+</body>
+</html>
