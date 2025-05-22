@@ -274,7 +274,7 @@ if __name__=="__main__":
                 print("Saving only rare variants.")
 
         if args.pathogenic:
-            parsedJSON = parsedJSON[parsedJSON["CLINICAL_SIGNIFICANCE"].str.lower() == "pathogenic"]
+            parsedJSON = parsedJSON[parsedJSON["CLINICAL_SIGNIFICANCE"].str.lower().isin(["pathogenic", "likely pathogenic"])]
             if parsedJSON.empty:
                 print("No pathogenic variants found!")
                 exit()
