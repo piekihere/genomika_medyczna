@@ -10,7 +10,7 @@ options: \
   &emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp; &emsp; &emsp;*RSid e.g. rs58991260 \
   &emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp; &emsp; &emsp;*specific SNP e.g. chr1:g.35367G>A \
   &emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp; &emsp; &emsp;*ENSBML gene ID e.g. ENSG00000113368 \
-  -o OUTPUT, --output OUTPUT&emsp;Path to output file. \
+  -o OUTPUT, --output OUTPUT&ensp;Path to output file. \
   --show-na&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp; &emsp;Show variants even if there is no information for them in the databases \
   --rare &emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;Save only rare variants \
   --pathogenic &emsp;&emsp;&emsp;&emsp; &emsp; &emsp; &emsp;Save only pathogenic variants. 
