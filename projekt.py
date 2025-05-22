@@ -3,6 +3,8 @@ import argparse
 import httplib2
 import pandas as pd
 import json
+import datetime
+
 def wrap_collapsible(label: str, content: str) -> str:
     return f'''
     <details>
@@ -61,7 +63,7 @@ class SmartFormatter(argparse.HelpFormatter):
         return text.splitlines()  
 
 parser = argparse.ArgumentParser(
-                    prog='NAZWA PROGRAMU', ##IDK trzeba coś zdecydować
+                    prog='Varianinator', ##IDK trzeba coś zdecydować
                     description='Search ClinVar, DBSNP and SnpEff for described variant in VCF file or by variant ID.',
                     epilog='Bioinformatyka rok V',
                     formatter_class=SmartFormatter)
@@ -139,8 +141,10 @@ def askAPI(query):
 #Parsowanie JSONa na dataframe
 def parseJSON(resultsJSON):
     rows_to_append = []
+    na_num = 0
     for result in resultsJSON:
             if result.get("notfound", False):
+                na_num += 1
                 if args.show_na == True:
                     id = result.get('query', 'N/A')
                     rows_to_append.append({'ID':id, 'SCORE':'N/A', 'CHROM':'N/A', 'START':'N/A', 'END':'N/A', 'OBSERVED':'N/A', 'VCF':'N/A', 'CLINVAR':'N/A', 'SNPEFF':'N/A', 'DBSNP':'N/A', 'RARE':'N/A'})
@@ -157,13 +161,15 @@ def parseJSON(resultsJSON):
                 vcf_dict = result.get('vcf', {})
                 vcf = json.dumps(vcf_dict)
 
-
                 clinvar_dict = {k: v for k, v in result.get('clinvar', {}).items() if k != '_license'}
                 clinvar = json.dumps(clinvar_dict)
+                if not bool(clinvar_dict):
+                    clinvar = "N/A"
 
                 snpeff_data = result.get('snpeff', {}).get('ann', 'N/A')
                 snpeff = json.dumps(snpeff_data)
-
+                if not bool(snpeff_data):
+                    clinvar = "N/A"
 
                 dbsnp_dict = {k: v for k, v in result.get('dbsnp', {}).items() if k != '_license'}
                 if 'alleles' in dbsnp_dict:
@@ -171,6 +177,8 @@ def parseJSON(resultsJSON):
                 else:
                     rare = "N/A"
                 dbsnp = json.dumps(dbsnp_dict)
+                if not bool(dbsnp_dict):
+                    dbsnp = "N/A"
 
 
                 if clinvar == "":
@@ -183,24 +191,28 @@ def parseJSON(resultsJSON):
 
     df = pd.DataFrame(rows_to_append)
 
-    return df
+    return df, na_num
     
 ##Zapisywanie raportu w HTML
-def saveRaport(parsedJSON):
+def saveReport(parsedJSON):
     if args.output == '':
-        output = "raport.html"
+        output = "report.html"
     else:
-        output = args.output + "\\raport.html"
+        if args.output[-5:] == ".html":
+            output = args.output
+        else:
+             output = args.output + ".html"
     
     with open('skeleton.html', 'r') as skeleton:
         html = skeleton.read()
-
+    
+    time = str(datetime.datetime.now())[:-10]
     table_html = df_to_html(parsedJSON)
+    html = html.replace("{table_html}", table_html)
+    html = html.replace("{time}", time)
 
-
-    raport = html.replace("{table_html}", table_html)
     with open(output, "w") as file:
-        file.write(raport)
+        file.write(html)
         
     print(f"Report saved to {output}")
     return
@@ -256,32 +268,39 @@ if __name__=="__main__":
             if 'notfound' in resultsJSON[0].keys():
                 print("Cannot find variant with given ID.")
                 exit()
-        parsedJSON = parseJSON(resultsJSON)# <-- TUTAJ JEST DATAFRAME NATALIA, parseJSON(resultsJSON) ZWRACA DATAFRAME
+        parsedJSON, na_num = parseJSON(resultsJSON)# <-- TUTAJ JEST DATAFRAME NATALIA, parseJSON(resultsJSON) ZWRACA DATAFRAME
+        print(f'Data for {na_num} varianst was not available.')
 
         clinical_significance = []
         for result in resultsJSON:
             if result.get("notfound", False) and not args.show_na:
                 continue 
             clinical_significance.append(ClinicalSignificance(result))
-
         parsedJSON["CLINICAL_SIGNIFICANCE"] = clinical_significance
-        parsedJSON = parsedJSON[parsedJSON["RARE"]=="+"]
+
         if args.rare:
+            before = len(parsedJSON)
+            parsedJSON = parsedJSON[parsedJSON["RARE"]=="+"]
+            after = len(parsedJSON)
             if parsedJSON.empty:
                 print("No rare variants found!")
                 exit()
             else:
+                print(f'From {before}, {after} were considerd rare. {before - after} entries were omitted.')
                 print("Saving only rare variants.")
 
         if args.pathogenic:
+            before = len(parsedJSON)
             parsedJSON = parsedJSON[parsedJSON["CLINICAL_SIGNIFICANCE"].str.lower() == "pathogenic"]
+            after = len(parsedJSON)
             if parsedJSON.empty:
                 print("No pathogenic variants found!")
                 exit()
             else:
+                print(f'From {before}, {after} were considerd pathogenic. {before - after} entries were omitted.')
                 print("Saving only pathogenic variants.")
 
-        print("Saving raport...")
-        saveRaport(parsedJSON) #Natalia modyfikuj plik skeleton.html. Tam, gdzie ma pojawiać się tabela wstaw <div id="wynik">{table_html}</div>
+        print("Saving report...")
+        saveReport(parsedJSON) #Natalia modyfikuj plik skeleton.html. Tam, gdzie ma pojawiać się tabela wstaw <div id="wynik">{table_html}</div>
         
 #Jak będzie trzeba coś jeszcze dodać po mojej stronie np handling flag jakiś czy coś wymyślicie to dajcie znać i ogarne ~Piotr
